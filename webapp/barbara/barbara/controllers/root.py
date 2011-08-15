@@ -3,10 +3,27 @@
 
 from tg import expose, flash, require, url, request, redirect
 from pylons.i18n import ugettext as _, lazy_ugettext as l_
+from hashlib import md5
+
+import subprocess
+import itertools
+import string
+import sys
+
+from curses.ascii import isdigit
+from nltk.corpus import cmudict
+
+cmud = cmudict.dict()
+
+def nsyl(word):
+    return [len(list(y for y in x if isdigit(y[-1])))
+            for x in cmud[word.lower()]]
+
 
 from barbara.lib.base import BaseController
 
 from barbara.controllers.error import ErrorController
+
 
 __all__ = ['RootController']
 
@@ -26,27 +43,55 @@ class RootController(BaseController):
 
     """
 
+    # TODO -- disable this in production
     error = ErrorController()
 
     @expose('barbara.templates.index')
-    def index(self):
+    def index(self, n=4):
         """Handle the front-page."""
         return dict(page='index')
+
+    @expose()
+    def duckpunch(self, words, submit):
+        words = words.split()
+
+        # Strip punctuation
+        exclude = set(string.punctuation)
+        words = [''.join(ch for ch in word if ch not in exclude) for word in words]
+
+        n = min(self.count_syllables(words))
+        if n != 4:
+            redirect('/?n=%i' % n)
+
+        tag = md5("-".join(words)).hexdigest()
+
+        # Filename
+        fname = tag + '.wav'
+        # Fully qualified filename
+        fqfname = '/'.join(__file__.split('/')[:-2] +
+                           ['public', 'barbara', fname])
+
+        # Create the .wav file
+        subprocess.Popen(['espeak', '-w', fqfname, " ".join(words)])
+
+        redirect('/barbara/' + fname)
 
     @expose('barbara.templates.about')
     def about(self):
         """Handle the 'about' page."""
         return dict(page='about')
 
-    @expose('barbara.templates.environ')
-    def environ(self):
-        """This method showcases TG's access to the wsgi environment."""
-        return dict(environment=request.environ)
+    def count_syllables(self, words):
+        """ Utility to count the syllables in a number of words """
 
-    @expose('barbara.templates.data')
-    @expose('json')
-    def data(self, **kw):
-        """This method showcases how you can use the same controller for a data page and a display page"""
-        return dict(params=kw)
+        # Count syllables of each word.
+        try:
+            results = [nsyl(word) for word in words]
+        except KeyError as e:
+            print "** Unrecognized word.", str(e)
+            sys.exit(1)
 
-
+        # Upper and lower bound
+        upper = sum([max(r) for r in results])
+        lower = sum([min(r) for r in results])
+        return [lower, upper]
