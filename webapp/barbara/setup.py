@@ -33,6 +33,7 @@ setup(
     author_email='',
     #url='',
     install_requires=[
+        "tg.devtools",
         "TurboGears2 >= 2.1.1",
         "Mako",
                                         ],
