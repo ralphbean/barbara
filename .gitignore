@@ -3,3 +3,4 @@ test.wav
 *.pyc
 *.db*
 *.egg*
+data
